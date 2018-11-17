@@ -103,6 +103,7 @@ target_link_libraries(bcc-static ${bcc_common_libs_for_a} bcc-loader-static)
 set(bcc-lua-static ${bcc-lua-static} ${bcc_common_libs_for_lua})
 
 install(TARGETS bcc-shared LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
+install(TARGETS bcc-static ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
 install(FILES ${bcc_table_headers} DESTINATION include/bcc)
 install(FILES ${bcc_api_headers} DESTINATION include/bcc)
 install(DIRECTORY compat/linux/ DESTINATION include/bcc/compat/linux FILES_MATCHING PATTERN "*.h")
@@ -110,3 +111,4 @@ install(FILES ${CMAKE_CURRENT_BINARY_DIR}/libbcc.pc DESTINATION ${CMAKE_INSTALL_
 endif(ENABLE_CLANG_JIT)
 install(FILES ${bcc_common_headers} DESTINATION include/bcc)
 install(TARGETS bpf-shared LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
+install(TARGETS bpf-static ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
