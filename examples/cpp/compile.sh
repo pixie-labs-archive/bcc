@@ -1,0 +1,18 @@
+#!/bin/bash -ex
+# objcopy --input binary \
+#         --output elf64-x86-64 \
+#         --binary-architecture i386:x86-64 CPUDistro.bpf.c CPUDistro.bpf.o
+# clang++ -c -I /usr/include/bcc/ -o CPUDistro.o CPUDistro.cc
+# clang++ -c -I /usr/include/bcc/ -o CPUDistro.o CPUDistro.cc
+# clang++ -I /usr/include/bcc/ -I /usr/include/bcc/compat/linux/ -o CPUDistro CPUDistro.o CPUDistro.bpf.o -L/usr/lib/x86_64-linux-gnu/libbcc.a -L/usr/lib/x86_64-linux-gnu/libbpf.a
+# DEBUG
+# clang++ -I /usr/include/bcc/ -I /usr/include/bcc/compat/linux/ -o CPUDistro CPUDistro.o CPUDistro.bpf.o
+clang++ -o CPUDistro CPUDistro.o CPUDistro.bpf.o /usr/lib/x86_64-linux-gnu/libbcc.a /usr/lib/x86_64-linux-gnu/libbpf.a  -Wl,--whole-archive /usr/lib/llvm-6.0/lib/libclangFrontend.a /usr/lib/llvm-6.0/lib/libclangSerialization.a /usr/lib/llvm-6.0/lib/libclangDriver.a /usr/lib/llvm-6.0/lib/libclangParse.a /usr/lib/llvm-6.0/lib/libclangSema.a /usr/lib/llvm-6.0/lib/libclangCodeGen.a /usr/lib/llvm-6.0/lib/libclangAnalysis.a /usr/lib/llvm-6.0/lib/libclangRewrite.a \
+/usr/lib/llvm-6.0/lib/libclangEdit.a /usr/lib/llvm-6.0/lib/libclangAST.a /usr/lib/llvm-6.0/lib/libclangLex.a /usr/lib/llvm-6.0/lib/libclangBasic.a /usr/lib/llvm-6.0/lib/libLLVMBPFDisassembler.a /usr/lib/llvm-6.0/lib/libLLVMBPFAsmParser.a /usr/lib/llvm-6.0/lib/libLLVMCoroutines.a /usr/lib/llvm-6.0/lib/libLLVMCoverage.a /usr/lib/llvm-6.0/lib/libLLVMLTO.a /usr/lib/llvm-6.0/lib/libLLVMX86CodeGen.a /usr/lib/llvm-6.0/lib/libLLVMX86Desc.a /usr/lib/llvm-6.0/lib/libLLVMX86Info.a \
+/usr/lib/llvm-6.0/lib/libLLVMMCDisassembler.a /usr/lib/llvm-6.0/lib/libLLVMX86AsmPrinter.a /usr/lib/llvm-6.0/lib/libLLVMX86Utils.a /usr/lib/llvm-6.0/lib/libLLVMGlobalISel.a /usr/lib/llvm-6.0/lib/libLLVMPasses.a /usr/lib/llvm-6.0/lib/libLLVMipo.a /usr/lib/llvm-6.0/lib/libLLVMVectorize.a /usr/lib/llvm-6.0/lib/libLLVMInstrumentation.a /usr/lib/llvm-6.0/lib/libLLVMOption.a /usr/lib/llvm-6.0/lib/libLLVMObjCARCOpts.a /usr/lib/llvm-6.0/lib/libLLVMMCJIT.a \
+/usr/lib/llvm-6.0/lib/libLLVMExecutionEngine.a /usr/lib/llvm-6.0/lib/libLLVMRuntimeDyld.a /usr/lib/llvm-6.0/lib/libLLVMLinker.a /usr/lib/llvm-6.0/lib/libLLVMIRReader.a /usr/lib/llvm-6.0/lib/libLLVMAsmParser.a /usr/lib/llvm-6.0/lib/libLLVMDebugInfoDWARF.a /usr/lib/llvm-6.0/lib/libLLVMBPFCodeGen.a /usr/lib/llvm-6.0/lib/libLLVMSelectionDAG.a /usr/lib/llvm-6.0/lib/libLLVMBPFDesc.a /usr/lib/llvm-6.0/lib/libLLVMBPFInfo.a /usr/lib/llvm-6.0/lib/libLLVMBPFAsmPrinter.a \
+/usr/lib/llvm-6.0/lib/libLLVMAsmPrinter.a /usr/lib/llvm-6.0/lib/libLLVMDebugInfoCodeView.a /usr/lib/llvm-6.0/lib/libLLVMDebugInfoMSF.a /usr/lib/llvm-6.0/lib/libLLVMCodeGen.a /usr/lib/llvm-6.0/lib/libLLVMTarget.a /usr/lib/llvm-6.0/lib/libLLVMScalarOpts.a /usr/lib/llvm-6.0/lib/libLLVMInstCombine.a /usr/lib/llvm-6.0/lib/libLLVMTransformUtils.a /usr/lib/llvm-6.0/lib/libLLVMBitWriter.a /usr/lib/llvm-6.0/lib/libLLVMAnalysis.a /usr/lib/llvm-6.0/lib/libLLVMProfileData.a \
+/usr/lib/llvm-6.0/lib/libLLVMObject.a /usr/lib/llvm-6.0/lib/libLLVMMCParser.a /usr/lib/llvm-6.0/lib/libLLVMMC.a /usr/lib/llvm-6.0/lib/libLLVMBitReader.a /usr/lib/llvm-6.0/lib/libLLVMCore.a /usr/lib/llvm-6.0/lib/libLLVMBinaryFormat.a /usr/lib/llvm-6.0/lib/libLLVMSupport.a -lz -lrt -ldl -ltinfo -lpthread -lm /usr/lib/llvm-6.0/lib/libLLVMDemangle.a -Wl,--no-whole-archive \
+ /usr/lib/x86_64-linux-gnu/libapi-static.a /usr/lib/x86_64-linux-gnu/libb_frontend.a /usr/lib/x86_64-linux-gnu/libclang_frontend.a /usr/lib/x86_64-linux-gnu/libusdt-static.a /usr/lib/x86_64-linux-gnu/libbcc-loader-static.a -lelf
+
+    # -lelf ../../src/cc/api/libapi-static.a ../../src/cc/usdt/libusdt-static.a ../../src/cc/libbcc-loader-static.a -lelf
