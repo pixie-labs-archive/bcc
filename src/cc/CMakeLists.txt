@@ -110,6 +110,7 @@ set(bcc-lua-static ${bcc-lua-static} ${bcc_common_libs_for_lua})
 
 install(TARGETS bcc-shared LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
 install(TARGETS bcc-static ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
+install(TARGETS bcc-loader-static ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
 install(FILES ${bcc_table_headers} DESTINATION include/bcc)
 install(FILES ${bcc_api_headers} DESTINATION include/bcc)
 install(DIRECTORY libbpf/include/uapi/linux/ DESTINATION include/bcc/compat/linux FILES_MATCHING PATTERN "*.h")
