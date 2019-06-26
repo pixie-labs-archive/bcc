@@ -89,14 +89,16 @@ BPF_PERF_OUTPUT(ipv6_events);
 
 int trace_connect_entry(struct pt_regs *ctx, struct sock *sk)
 {
-    u32 pid = bpf_get_current_pid_tgid();
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    u32 pid = pid_tgid >> 32;
+    u32 tid = pid_tgid;
     FILTER_PID
 
     u32 uid = bpf_get_current_uid_gid();
     FILTER_UID
 
     // stash the sock ptr for lookup on return
-    currsock.update(&pid, &sk);
+    currsock.update(&tid, &sk);
 
     return 0;
 };
@@ -104,10 +106,12 @@ int trace_connect_entry(struct pt_regs *ctx, struct sock *sk)
 static int trace_connect_return(struct pt_regs *ctx, short ipver)
 {
     int ret = PT_REGS_RC(ctx);
-    u32 pid = bpf_get_current_pid_tgid();
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    u32 pid = pid_tgid >> 32;
+    u32 tid = pid_tgid;
 
     struct sock **skpp;
-    skpp = currsock.lookup(&pid);
+    skpp = currsock.lookup(&tid);
     if (skpp == 0) {
         return 0;   // missed entry
     }
@@ -115,7 +119,7 @@ static int trace_connect_return(struct pt_regs *ctx, short ipver)
     if (ret != 0) {
         // failed to send SYNC packet, may not have populated
         // socket __sk_common.{skc_rcv_saddr, ...}
-        currsock.delete(&pid);
+        currsock.delete(&tid);
         return 0;
     }
 
@@ -148,7 +152,7 @@ static int trace_connect_return(struct pt_regs *ctx, short ipver)
         ipv6_events.perf_submit(ctx, &data6, sizeof(data6));
     }
 
-    currsock.delete(&pid);
+    currsock.delete(&tid);
 
     return 0;
 }
@@ -193,9 +197,9 @@ def print_ipv4_event(cpu, data, size):
     if args.timestamp:
         if start_ts == 0:
             start_ts = event.ts_us
-        print("%-9.3f" % ((float(event.ts_us) - start_ts) / 1000000), end="")
+        printb(b"%-9.3f" % ((float(event.ts_us) - start_ts) / 1000000), nl="")
     if args.print_uid:
-        print("%-6d" % event.uid, end="")
+        printb(b"%-6d" % event.uid, nl="")
     printb(b"%-6d %-12.12s %-2d %-16s %-16s %-4d" % (event.pid,
         event.task, event.ip,
         inet_ntop(AF_INET, pack("I", event.saddr)).encode(),
@@ -207,9 +211,9 @@ def print_ipv6_event(cpu, data, size):
     if args.timestamp:
         if start_ts == 0:
             start_ts = event.ts_us
-        print("%-9.3f" % ((float(event.ts_us) - start_ts) / 1000000), end="")
+        printb(b"%-9.3f" % ((float(event.ts_us) - start_ts) / 1000000), nl="")
     if args.print_uid:
-        print("%-6d" % event.uid, end="")
+        printb(b"%-6d" % event.uid, nl="")
     printb(b"%-6d %-12.12s %-2d %-16s %-16s %-4d" % (event.pid,
         event.task, event.ip,
         inet_ntop(AF_INET6, event.saddr).encode(), inet_ntop(AF_INET6, event.daddr).encode(),

@@ -309,11 +309,9 @@ Things to learn:
 1. ```bpf_get_current_comm()```: Populates the first argument address with the current process name.
 1. ```events.perf_submit()```: Submit the event for user space to read via a perf ring buffer.
 1. ```def print_event()```: Define a Python function that will handle reading events from the ```events``` stream.
-1. ```b["events"].event(data)```: Now get the event as a Python object.
+1. ```b["events"].event(data)```: Now get the event as a Python object, auto-generated from the C declaration.
 1. ```b["events"].open_perf_buffer(print_event)```: Associate the Python ```print_event``` function with the ```events``` stream.
 1. ```while 1: b.perf_buffer_poll()```: Block waiting for events.
-
-This may be improved in future bcc versions. Eg, the Python data struct could be auto-generated from the C code.
 
 ### Lesson 8. sync_perf_output.py
 
@@ -590,7 +588,7 @@ Things to learn:
 
 ### Lesson 15. nodejs_http_server.py
 
-This program instruments a user-defined static tracing (USDT) probe, which is the user-level version of a kernel tracepoint. Sample output:
+This program instruments a user statically-defined tracing (USDT) probe, which is the user-level version of a kernel tracepoint. Sample output:
 
 ```
 # ./nodejs_http_server.py 24728
@@ -653,45 +651,41 @@ This is a slightly more complex tracing example than Hello World. This program
 will be invoked for every task change in the kernel, and record in a BPF map
 the new and old pids.
 
-The C program below introduces two new concepts.
-The first is the macro `BPF_TABLE`. This defines a table (type="hash"), with key
-type `key_t` and leaf type `u64` (a single counter). The table name is `stats`,
-containing 1024 entries maximum. One can `lookup`, `lookup_or_init`, `update`,
-and `delete` entries from the table.
-The second concept is the prev argument. This argument is treated specially by
-the BCC frontend, such that accesses to this variable are read from the saved
-context that is passed by the kprobe infrastructure. The prototype of the args
-starting from position 1 should match the prototype of the kernel function being
-kprobed. If done so, the program will have seamless access to the function
-parameters.
+The C program below introduces a new concept: the prev argument. This
+argument is treated specially by the BCC frontend, such that accesses
+to this variable are read from the saved context that is passed by the
+kprobe infrastructure. The prototype of the args starting from
+position 1 should match the prototype of the kernel function being
+kprobed. If done so, the program will have seamless access to the
+function parameters.
 
 ```c
 #include <uapi/linux/ptrace.h>
 #include <linux/sched.h>
 
 struct key_t {
-  u32 prev_pid;
-  u32 curr_pid;
+    u32 prev_pid;
+    u32 curr_pid;
 };
-// map_type, key_type, leaf_type, table_name, num_entry
+
 BPF_HASH(stats, struct key_t, u64, 1024);
 int count_sched(struct pt_regs *ctx, struct task_struct *prev) {
-  struct key_t key = {};
-  u64 zero = 0, *val;
+    struct key_t key = {};
+    u64 zero = 0, *val;
 
-  key.curr_pid = bpf_get_current_pid_tgid();
-  key.prev_pid = prev->pid;
+    key.curr_pid = bpf_get_current_pid_tgid();
+    key.prev_pid = prev->pid;
 
-  // could also use `stats.increment(key);`
-  val = stats.lookup_or_init(&key, &zero);
-  (*val)++;
-  return 0;
+    // could also use `stats.increment(key);`
+    val = stats.lookup_or_init(&key, &zero);
+    (*val)++;
+    return 0;
 }
 ```
 
 The userspace component loads the file shown above, and attaches it to the
 `finish_task_switch` kernel function.
-The [] operator of the BPF object gives access to each BPF_TABLE in the
+The `[]` operator of the BPF object gives access to each BPF_HASH in the
 program, allowing pass-through access to the values residing in the kernel. Use
 the object as you would any other python dict object: read, update, and deletes
 are all allowed.
@@ -709,7 +703,7 @@ for k, v in b["stats"].items():
     print("task_switch[%5d->%5d]=%u" % (k.prev_pid, k.curr_pid, v.value))
 ```
 
-These programs have now been merged, and are both in [examples/tracing/task_switch.py](examples/tracing/task_switch.py).
+These programs can be found in the files [examples/tracing/task_switch.c](../examples/tracing/task_switch.c) and [examples/tracing/task_switch.py](../examples/tracing/task_switch.py) respectively.
 
 ### Lesson 17. Further Study
 

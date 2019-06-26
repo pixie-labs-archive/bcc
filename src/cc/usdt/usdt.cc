@@ -295,19 +295,23 @@ Probe *Context::get(const std::string &provider_name,
 
 bool Context::enable_probe(const std::string &probe_name,
                            const std::string &fn_name) {
+  return enable_probe("", probe_name, fn_name);
+}
+
+bool Context::enable_probe(const std::string &provider_name,
+                           const std::string &probe_name,
+                           const std::string &fn_name) {
   if (pid_stat_ && pid_stat_->is_stale())
     return false;
 
-  // FIXME: we may have issues here if the context has two same probes's
-  // but different providers. For example, libc:setjmp and rtld:setjmp,
-  // libc:lll_futex_wait and rtld:lll_futex_wait.
   Probe *found_probe = nullptr;
   for (auto &p : probes_) {
-    if (p->name_ == probe_name) {
+    if (p->name_ == probe_name &&
+        (provider_name.empty() || p->provider() == provider_name)) {
       if (found_probe != nullptr) {
-         fprintf(stderr, "Two same-name probes (%s) but different providers\n",
-                 probe_name.c_str());
-         return false;
+        fprintf(stderr, "Two same-name probes (%s) but different providers\n",
+                probe_name.c_str());
+        return false;
       }
       found_probe = p.get();
     }
@@ -446,6 +450,13 @@ int bcc_usdt_enable_probe(void *usdt, const char *probe_name,
                           const char *fn_name) {
   USDT::Context *ctx = static_cast<USDT::Context *>(usdt);
   return ctx->enable_probe(probe_name, fn_name) ? 0 : -1;
+}
+
+int bcc_usdt_enable_fully_specified_probe(void *usdt, const char *provider_name,
+                                          const char *probe_name,
+                                          const char *fn_name) {
+  USDT::Context *ctx = static_cast<USDT::Context *>(usdt);
+  return ctx->enable_probe(provider_name, probe_name, fn_name) ? 0 : -1;
 }
 
 const char *bcc_usdt_genargs(void **usdt_array, int len) {

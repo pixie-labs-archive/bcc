@@ -521,6 +521,8 @@ Return: 0 on success
 
 A method of a BPF_PERF_OUTPUT table, for submitting custom event data to user space. See the BPF_PERF_OUTPUT entry. (This ultimately calls bpf_perf_event_output().)
 
+The ```ctx``` parameter is provided in [kprobes](#1-kprobes) or [kretprobes](#2-kretprobes). For ```SCHED_CLS``` or ```SOCKET_FILTER``` programs, the ```struct __sk_buff *skb``` must be used instead.
+
 Examples in situ:
 [search /examples](https://github.com/iovisor/bcc/search?q=perf_submit+path%3Aexamples&type=Code),
 [search /tools](https://github.com/iovisor/bcc/search?q=perf_submit+path%3Atools&type=Code)
@@ -540,6 +542,17 @@ Methods (covered later): map.lookup(), map.lookup_or_init(), map.delete(), map.u
 Examples in situ:
 [search /examples](https://github.com/iovisor/bcc/search?q=BPF_TABLE+path%3Aexamples&type=Code),
 [search /tools](https://github.com/iovisor/bcc/search?q=BPF_TABLE+path%3Atools&type=Code)
+
+#### Pinned Maps
+
+Maps that were pinned to the BPF filesystem can be accessed through an extended syntax: ```BPF_TABLE_PINNED(_table_type, _key_type, _leaf_type, _name, _max_entries, "/sys/fs/bpf/xyz")```
+The type information is not enforced and the actual map type depends on the map that got pinned to the location.
+
+For example:
+
+```C
+BPF_TABLE_PINNED("hash", u64, u64, ids, 1024, "/sys/fs/bpf/ids");
+```
 
 ### 2. BPF_HASH
 
@@ -1242,9 +1255,11 @@ Normal output from a BPF program is either:
 
 ### 1. perf_buffer_poll()
 
-Syntax: ```BPF.perf_buffer_poll()```
+Syntax: ```BPF.perf_buffer_poll(timeout=T)```
 
 This polls from all open perf ring buffers, calling the callback function that was provided when calling open_perf_buffer for each entry.
+
+The timeout parameter is optional and measured in milliseconds. In its absence, polling continues indefinitely.
 
 Example:
 

@@ -80,16 +80,17 @@ BPF_PERF_OUTPUT(ipv6_events);
 """
 
 #
-# The following is the code for older kernels(Linux pre-4.16).
-# It uses kprobes to instrument inet_csk_accept(). On Linux 4.16 and
-# later, the sock:inet_sock_set_state tracepoint should be used instead, as
-# is done by the code that follows this. 
+# The following code uses kprobes to instrument inet_csk_accept().
+# On Linux 4.16 and later, we could use sock:inet_sock_set_state
+# tracepoint for efficency, but it may output wrong PIDs. This is
+# because sock:inet_sock_set_state may run outside of process context.
+# Hence, we stick to kprobes until we find a proper solution.
 #
 bpf_text_kprobe = """
 int kretprobe__inet_csk_accept(struct pt_regs *ctx)
 {
     struct sock *newsk = (struct sock *)PT_REGS_RC(ctx);
-    u32 pid = bpf_get_current_pid_tgid();
+    u32 pid = bpf_get_current_pid_tgid() >> 32;
 
     ##FILTER_PID##
 
@@ -170,55 +171,7 @@ int kretprobe__inet_csk_accept(struct pt_regs *ctx)
 }
 """
 
-bpf_text_tracepoint = """
-TRACEPOINT_PROBE(sock, inet_sock_set_state)
-{
-    if (args->protocol != IPPROTO_TCP)
-        return 0;
-    if (args->oldstate != TCP_SYN_RECV || args->newstate != TCP_ESTABLISHED)
-        return 0;
-    u32 pid = bpf_get_current_pid_tgid();
-
-    ##FILTER_PID##
-
-    // pull in details
-    u16 family = 0, lport = 0, dport;
-    family = args->family;
-    lport = args->sport;
-    dport = args->dport;
-
-    ##FILTER_PORT##
-
-    if (family == AF_INET) {
-        struct ipv4_data_t data4 = {.pid = pid, .ip = 4};
-        data4.ts_us = bpf_ktime_get_ns() / 1000;
-        __builtin_memcpy(&data4.saddr, args->saddr, sizeof(data4.saddr));
-        __builtin_memcpy(&data4.daddr, args->daddr, sizeof(data4.daddr));
-        data4.lport = lport;
-        data4.dport = dport;
-        bpf_get_current_comm(&data4.task, sizeof(data4.task));
-        ipv4_events.perf_submit(args, &data4, sizeof(data4));
-    } else if (family == AF_INET6) {
-        struct ipv6_data_t data6 = {.pid = pid, .ip = 6};
-        data6.ts_us = bpf_ktime_get_ns() / 1000;
-        __builtin_memcpy(&data6.saddr, args->saddr, sizeof(data6.saddr));
-        __builtin_memcpy(&data6.daddr, args->daddr, sizeof(data6.daddr));
-        data6.lport = lport;
-        data6.dport = dport;
-        bpf_get_current_comm(&data6.task, sizeof(data6.task));
-        ipv6_events.perf_submit(args, &data6, sizeof(data6));
-    }
-    // else drop
-
-    return 0;
-}
-"""
-
-if (BPF.tracepoint_exists("sock", "inet_sock_set_state")):
-    bpf_text += bpf_text_tracepoint
-else:
-    bpf_text += bpf_text_kprobe
-
+bpf_text += bpf_text_kprobe
 
 # code substitutions
 if args.pid:
@@ -243,11 +196,11 @@ def print_ipv4_event(cpu, data, size):
     event = b["ipv4_events"].event(data)
     global start_ts
     if args.time:
-        print("%-9s" % strftime("%H:%M:%S"), end="")
+        printb(b"%-9s" % strftime("%H:%M:%S").encode('ascii'), nl="")
     if args.timestamp:
         if start_ts == 0:
             start_ts = event.ts_us
-        print("%-9.3f" % ((float(event.ts_us) - start_ts) / 1000000), end="")
+        printb(b"%-9.3f" % ((float(event.ts_us) - start_ts) / 1000000), nl="")
     printb(b"%-7d %-12.12s %-2d %-16s %-5d %-16s %-5d" % (event.pid,
         event.task, event.ip,
         inet_ntop(AF_INET, pack("I", event.daddr)).encode(),
@@ -259,11 +212,11 @@ def print_ipv6_event(cpu, data, size):
     event = b["ipv6_events"].event(data)
     global start_ts
     if args.time:
-        print("%-9s" % strftime("%H:%M:%S"), end="")
+        printb(b"%-9s" % strftime("%H:%M:%S").encode('ascii'), nl="")
     if args.timestamp:
         if start_ts == 0:
             start_ts = event.ts_us
-        print("%-9.3f" % ((float(event.ts_us) - start_ts) / 1000000), end="")
+        printb(b"%-9.3f" % ((float(event.ts_us) - start_ts) / 1000000), nl="")
     printb(b"%-7d %-12.12s %-2d %-16s %-5d %-16s %-5d" % (event.pid,
         event.task, event.ip,
         inet_ntop(AF_INET6, event.daddr).encode(),
