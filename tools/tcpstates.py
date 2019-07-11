@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/python
 # -*- coding: utf-8 -*-
 # @lint-avoid-python-3-compatibility-imports
 #
@@ -20,7 +20,6 @@ from bcc import BPF
 import argparse
 from socket import inet_ntop, AF_INET, AF_INET6
 from struct import pack
-import ctypes as ct
 from time import strftime, time
 from os import getuid
 
@@ -138,7 +137,7 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state)
         __builtin_memcpy(&data4.saddr, args->saddr, sizeof(data4.saddr));
         __builtin_memcpy(&data4.daddr, args->daddr, sizeof(data4.daddr));
         // a workaround until data4 compiles with separate lport/dport
-        data4.ports = dport + ((0ULL + lport) << 32);
+        data4.ports = dport + ((0ULL + lport) << 16);
         data4.pid = pid;
 
         bpf_get_current_comm(&data4.task, sizeof(data4.task));
@@ -154,7 +153,7 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state)
         __builtin_memcpy(&data6.saddr, args->saddr_v6, sizeof(data6.saddr));
         __builtin_memcpy(&data6.daddr, args->daddr_v6, sizeof(data6.daddr));
         // a workaround until data6 compiles with separate lport/dport
-        data6.ports = dport + ((0ULL + lport) << 32);
+        data6.ports = dport + ((0ULL + lport) << 16);
         data6.pid = pid;
         bpf_get_current_comm(&data6.task, sizeof(data6.task));
         ipv6_events.perf_submit(args, &data6, sizeof(data6));
@@ -190,37 +189,6 @@ if debug or args.ebpf:
     print(bpf_text)
     if args.ebpf:
         exit()
-
-# event data
-TASK_COMM_LEN = 16      # linux/sched.h
-
-class Data_ipv4(ct.Structure):
-    _fields_ = [
-        ("ts_us", ct.c_ulonglong),
-        ("skaddr", ct.c_ulonglong),
-        ("saddr", ct.c_uint),
-        ("daddr", ct.c_uint),
-        ("span_us", ct.c_ulonglong),
-        ("pid", ct.c_uint),
-        ("ports", ct.c_uint),
-        ("oldstate", ct.c_uint),
-        ("newstate", ct.c_uint),
-        ("task", ct.c_char * TASK_COMM_LEN)
-    ]
-
-class Data_ipv6(ct.Structure):
-    _fields_ = [
-        ("ts_us", ct.c_ulonglong),
-        ("skaddr", ct.c_ulonglong),
-        ("saddr", (ct.c_ulonglong * 2)),
-        ("daddr", (ct.c_ulonglong * 2)),
-        ("span_us", ct.c_ulonglong),
-        ("pid", ct.c_uint),
-        ("ports", ct.c_uint),
-        ("oldstate", ct.c_uint),
-        ("newstate", ct.c_uint),
-        ("task", ct.c_char * TASK_COMM_LEN)
-    ]
 
 #
 # Setup output formats
@@ -289,9 +257,9 @@ def journal_fields(event, addr_family):
         'OBJECT_COMM': event.task.decode('utf-8', 'replace'),
         # Custom fields, aka "stuff we sort of made up".
         'OBJECT_' + addr_pfx + '_SOURCE_ADDRESS': inet_ntop(addr_family, pack("I", event.saddr)),
-        'OBJECT_TCP_SOURCE_PORT': str(event.ports >> 32),
+        'OBJECT_TCP_SOURCE_PORT': str(event.ports >> 16),
         'OBJECT_' + addr_pfx + '_DESTINATION_ADDRESS': inet_ntop(addr_family, pack("I", event.daddr)),
-        'OBJECT_TCP_DESTINATION_PORT': str(event.ports & 0xffffffff),
+        'OBJECT_TCP_DESTINATION_PORT': str(event.ports & 0xffff),
         'OBJECT_TCP_OLD_STATE': tcpstate2str(event.oldstate),
         'OBJECT_TCP_NEW_STATE': tcpstate2str(event.newstate),
         'OBJECT_TCP_SPAN_TIME': str(event.span_us)
@@ -312,7 +280,7 @@ def journal_fields(event, addr_family):
 
 # process event
 def print_ipv4_event(cpu, data, size):
-    event = ct.cast(data, ct.POINTER(Data_ipv4)).contents
+    event = b["ipv4_events"].event(data)
     global start_ts
     if args.time:
         if args.csv:
@@ -329,15 +297,15 @@ def print_ipv4_event(cpu, data, size):
             print("%-9.6f " % delta_s, end="")
     print(format_string % (event.skaddr, event.pid, event.task.decode('utf-8', 'replace'),
         "4" if args.wide or args.csv else "",
-        inet_ntop(AF_INET, pack("I", event.saddr)), event.ports >> 32,
-        inet_ntop(AF_INET, pack("I", event.daddr)), event.ports & 0xffffffff,
+        inet_ntop(AF_INET, pack("I", event.saddr)), event.ports >> 16,
+        inet_ntop(AF_INET, pack("I", event.daddr)), event.ports & 0xffff,
         tcpstate2str(event.oldstate), tcpstate2str(event.newstate),
         float(event.span_us) / 1000))
     if args.journal:
         journal.send(**journal_fields(event, AF_INET))
 
 def print_ipv6_event(cpu, data, size):
-    event = ct.cast(data, ct.POINTER(Data_ipv6)).contents
+    event = b["ipv6_events"].event(data)
     global start_ts
     if args.time:
         if args.csv:
@@ -354,8 +322,8 @@ def print_ipv6_event(cpu, data, size):
             print("%-9.6f " % delta_s, end="")
     print(format_string % (event.skaddr, event.pid, event.task.decode('utf-8', 'replace'),
         "6" if args.wide or args.csv else "",
-        inet_ntop(AF_INET6, event.saddr), event.ports >> 32,
-        inet_ntop(AF_INET6, event.daddr), event.ports & 0xffffffff,
+        inet_ntop(AF_INET6, event.saddr), event.ports >> 16,
+        inet_ntop(AF_INET6, event.daddr), event.ports & 0xffff,
         tcpstate2str(event.oldstate), tcpstate2str(event.newstate),
         float(event.span_us) / 1000))
     if args.journal:
