@@ -1,0 +1,11 @@
+/.output
+/bitesize
+/cpudist
+/drsnoop
+/execsnoop
+/filelife
+/opensnoop
+/runqslower
+/syscount
+/vfsstat
+/xfsslower
