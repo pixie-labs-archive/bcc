@@ -31,6 +31,7 @@ This guide is incomplete. If something feels missing, check the bcc and kernel s
         - [9. bpf_get_prandom_u32()](#9-bpf_get_prandom_u32)
         - [10. bpf_probe_read_user()](#10-bpf_probe_read_user)
         - [11. bpf_probe_read_user_str()](#11-bpf_probe_read_user_str)
+        - [12. bpf_get_ns_current_pid_tgid()](#12-bpf_get_ns_current_pid_tgid)
     - [Debugging](#debugging)
         - [1. bpf_override_return()](#1-bpf_override_return)
     - [Output](#output)
@@ -70,9 +71,10 @@ This guide is incomplete. If something feels missing, check the bcc and kernel s
         - [25. map.call()](#25-mapcall)
         - [26. map.redirect_map()](#26-mapredirect_map)
         - [27. map.push()](#27-mappush)
-        - [28. map.pop()](#27-mappop)
-        - [29. map.peek()](#27-mappeek)
+        - [28. map.pop()](#28-mappop)
+        - [29. map.peek()](#29-mappeek)
     - [Licensing](#licensing)
+    - [Rewriter](#rewriter)
 
 - [bcc Python](#bcc-python)
     - [Initialization](#initialization)
@@ -573,6 +575,24 @@ This copies a `NULL` terminated string from user address space to the BPF stack,
 Examples in situ:
 [search /examples](https://github.com/iovisor/bcc/search?q=bpf_probe_read_user_str+path%3Aexamples&type=Code),
 [search /tools](https://github.com/iovisor/bcc/search?q=bpf_probe_read_user_str+path%3Atools&type=Code)
+  
+
+### 12. bpf_get_ns_current_pid_tgid()
+
+Syntax: ```u32 bpf_get_ns_current_pid_tgid(u64 dev, u64 ino, struct bpf_pidns_info* nsdata, u32 size)```
+
+Values for *pid* and *tgid* as seen from the current *namespace* will be returned in *nsdata*.
+
+Return 0 on success, or one of the following in case of failure:
+ 
+- **-EINVAL** if dev and inum supplied don't match dev_t and inode number with nsfs of current task, or if dev conversion to dev_t lost high bits.
+
+- **-ENOENT** if pidns does not exists for the current task.
+
+Examples in situ:
+[search /examples](https://github.com/iovisor/bcc/search?q=bpf_get_ns_current_pid_tgid+path%3Aexamples&type=Code),
+[search /tools](https://github.com/iovisor/bcc/search?q=bpf_get_ns_current_pid_tgid+path%3Atools&type=Code)
+
 
 ## Debugging
 
@@ -1312,6 +1332,10 @@ Otherwise, the kernel may reject loading your program (see the [error descriptio
 Check the [BPF helpers reference](kernel-versions.md#helpers) to see which helpers are GPL-only and what the kernel understands as GPL-compatible.
 
 **If the macro is not specified, BCC will automatically define the license of the program as GPL.**
+
+## Rewriter
+
+One of jobs for rewriter is to turn implicit memory accesses to explicit ones using kernel helpers. Recent kernel introduced a config option ARCH_HAS_NON_OVERLAPPING_ADDRESS_SPACE which will be set for architectures who user address space and kernel address are disjoint. x86 and arm has this config option set while s390 does not. If ARCH_HAS_NON_OVERLAPPING_ADDRESS_SPACE is not set, the bpf old helper `bpf_probe_read()` will not be available. Some existing users may have implicit memory accesses to access user memory, so using `bpf_probe_read_kernel()` will cause their application to fail. Therefore, for non-s390, the rewriter will use `bpf_probe_read()` for these implicit memory accesses. For s390, `bpf_probe_read_kernel()` is used as default and users should use `bpf_probe_read_user()` explicitly when accessing user memories.
 
 # bcc Python
 

@@ -10,14 +10,21 @@ CFLAGS := -g -O2 -Wall
 ARCH := $(shell uname -m | sed 's/x86_64/x86/')
 
 APPS = \
+	biolatency \
+	biopattern \
+	biosnoop \
+	biostacks \
 	bitesize \
 	cpudist \
 	drsnoop \
 	execsnoop \
 	filelife \
 	opensnoop \
+	readahead \
 	runqslower \
 	syscount \
+	tcpconnect \
+	tcpconnlat \
 	vfsstat \
 	xfsslower \
 	#
@@ -26,6 +33,7 @@ COMMON_OBJ = \
 	$(OUTPUT)/trace_helpers.o \
 	$(OUTPUT)/syscall_helpers.o \
 	$(OUTPUT)/errno_helpers.o \
+	$(OUTPUT)/map_helpers.o \
 	#
 
 .PHONY: all
