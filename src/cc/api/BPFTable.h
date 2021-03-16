@@ -381,6 +381,7 @@ class BPFStackTable : public BPFTableBase<int, stacktrace_t> {
   void clear_table_non_atomic();
   std::vector<uintptr_t> get_stack_addr(int stack_id);
   std::vector<std::string> get_stack_symbol(int stack_id, int pid);
+  std::string get_addr_symbol(uintptr_t addr, int pid);
 
  private:
   bcc_symbol_option symbol_option_;
