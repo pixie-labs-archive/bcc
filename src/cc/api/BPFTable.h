@@ -300,9 +300,10 @@ class BPFHashTable : public BPFTableBase<KeyType, ValueType> {
     return value;
   }
 
-  std::vector<std::pair<KeyType, ValueType>> get_table_offline() {
+  std::vector<std::pair<KeyType, ValueType>> get_table_offline(const bool clear_table=false) {
     std::vector<std::pair<KeyType, ValueType>> res;
     KeyType cur;
+    KeyType prev;
     ValueType value;
 
     StatusTuple r(0);
@@ -315,8 +316,16 @@ class BPFHashTable : public BPFTableBase<KeyType, ValueType> {
       if (r.code() != 0)
         break;
       res.emplace_back(cur, value);
-      if (!this->next(&cur, &cur))
+      prev = cur;
+      if (!this->next(&cur, &cur)) {
+        if(clear_table) {
+          this->remove_value(prev);
+        }
         break;
+      }
+      if(clear_table) {
+        this->remove_value(prev);
+      }
     }
 
     return res;
@@ -379,6 +388,7 @@ class BPFStackTable : public BPFTableBase<int, stacktrace_t> {
   ~BPFStackTable();
 
   void clear_table_non_atomic();
+  void clear_stack_id(int stack_id);
   std::vector<uintptr_t> get_stack_addr(int stack_id);
   std::vector<std::string> get_stack_symbol(int stack_id, int pid);
   std::string get_addr_symbol(uintptr_t addr, int pid);

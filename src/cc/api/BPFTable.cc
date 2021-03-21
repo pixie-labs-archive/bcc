@@ -274,6 +274,12 @@ BPFStackTable::~BPFStackTable() {
     bcc_free_symcache(it.second, it.first);
 }
 
+void BPFStackTable::clear_stack_id(int stack_id) {
+  if(stack_id >= 0) {
+    remove(&stack_id);
+  }
+}
+
 void BPFStackTable::clear_table_non_atomic() {
   for (int i = 0; size_t(i) < capacity(); i++) {
     remove(&i);
