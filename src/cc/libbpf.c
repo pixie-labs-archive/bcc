@@ -1096,37 +1096,48 @@ static int bpf_detach_probe(const char *ev_name, const char *event_type)
   int kfd = -1, res;
   char buf[PATH_MAX];
   int found_event = 0;
-  size_t bufsize = 0;
-  char *cptr = NULL;
-  FILE *fp;
+  FILE *fp = NULL;
 
-  /*
-   * For [k,u]probe created with perf_event_open (on newer kernel), it is
-   * not necessary to clean it up in [k,u]probe_events. We first look up
-   * the %s_bcc_%d line in [k,u]probe_events. If the event is not found,
-   * it is safe to skip the cleaning up process (write -:... to the file).
-   */
-  snprintf(buf, sizeof(buf), "/sys/kernel/debug/tracing/%s_events", event_type);
-  fp = fopen(buf, "r");
-  if (!fp) {
-    fprintf(stderr, "open(%s): %s\n", buf, strerror(errno));
-    goto error;
-  }
+  // Pixie notes:
+  // bpf_detach_probe() sometimes fails due to some race that is not fully understood.
+  // The race is likely with the /sys filesystem.
+  // An attached probe is not removed, and instead we get the following error,
+  // on a subsequent probe deployment.
+  //    cannot attach kprobe, File exists
+  // This results in flaky tests, so we try detaching twice as a workaround.
 
-  res = snprintf(buf, sizeof(buf), "%ss/%s__pixie__%d", event_type, ev_name, getpid());
-  if (res < 0 || res >= sizeof(buf)) {
-    fprintf(stderr, "snprintf(%s): %d\n", ev_name, res);
-    goto error;
-  }
+  for (int i = 0; i < 2 && !found_event; i++) {
+    char *cptr = NULL;
+    size_t bufsize = 0;
 
-  while (getline(&cptr, &bufsize, fp) != -1)
-    if (strstr(cptr, buf) != NULL) {
-      found_event = 1;
-      break;
+    /*
+     * For [k,u]probe created with perf_event_open (on newer kernel), it is
+     * not necessary to clean it up in [k,u]probe_events. We first look up
+     * the %s_bcc_%d line in [k,u]probe_events. If the event is not found,
+     * it is safe to skip the cleaning up process (write -:... to the file).
+     */
+    snprintf(buf, sizeof(buf), "/sys/kernel/debug/tracing/%s_events", event_type);
+    fp = fopen(buf, "r");
+    if (!fp) {
+      fprintf(stderr, "open(%s): %s\n", buf, strerror(errno));
+      goto error;
     }
-  free(cptr);
-  fclose(fp);
-  fp = NULL;
+
+    res = snprintf(buf, sizeof(buf), "%ss/%s__pixie__%d", event_type, ev_name, getpid());
+    if (res < 0 || res >= sizeof(buf)) {
+      fprintf(stderr, "snprintf(%s): %d\n", ev_name, res);
+      goto error;
+    }
+
+    while (getline(&cptr, &bufsize, fp) != -1)
+      if (strstr(cptr, buf) != NULL) {
+        found_event = 1;
+        break;
+      }
+    free(cptr);
+    fclose(fp);
+    fp = NULL;
+  }
 
   if (!found_event)
     return 0;
