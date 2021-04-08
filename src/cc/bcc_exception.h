@@ -74,6 +74,9 @@ public:
 
   const std::string& msg() const { return msg_; }
 
+  void set_errno(int e) { errno_ = e; }
+  int get_errno() const { return errno_; }
+
 private:
   int ret_;
 
@@ -81,6 +84,8 @@ private:
   Code code_;
 
   std::string msg_;
+
+  int errno_ = 0;
 };
 
 #define TRY2(CMD)                    \

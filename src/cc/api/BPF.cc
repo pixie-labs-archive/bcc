@@ -203,26 +203,17 @@ StatusTuple BPF::attach_kprobe(const std::string& kernel_func,
   int probe_fd;
   TRY2(load_func(probe_func, BPF_PROG_TYPE_KPROBE, probe_fd));
 
-  const int kAttempts = 3;
-  int res_fd = -1;
-  for (int i=0; i < kAttempts; ++i) {
-    res_fd = bpf_attach_kprobe(probe_fd, attach_type, probe_event.c_str(),
-                                   kernel_func.c_str(), kernel_func_offset,
-                                   maxactive);
-
-    if (res_fd == -1 && errno == EBUSY) {
-      // Back-off with some jitter.
-      usleep(10000 + (rand() % 10000));
-    } else {
-      break;
-    }
-  }
+  int res_fd = bpf_attach_kprobe(probe_fd, attach_type, probe_event.c_str(),
+                                 kernel_func.c_str(), kernel_func_offset,
+                                 maxactive);
 
   if (res_fd < 0) {
+    StatusTuple s(-1, "Unable to attach %skprobe for %s using %s",
+                attach_type_debug(attach_type).c_str(),
+                kernel_func.c_str(), probe_func.c_str());
+    s.set_errno(errno);
     TRY2(unload_func(probe_func));
-    return StatusTuple(-1, "Unable to attach %skprobe for %s using %s",
-                       attach_type_debug(attach_type).c_str(),
-                       kernel_func.c_str(), probe_func.c_str());
+    return s;
   }
 
   open_probe_t p = {};
@@ -256,28 +247,19 @@ StatusTuple BPF::attach_uprobe(const std::string& binary_path,
   int probe_fd;
   TRY2(load_func(probe_func, BPF_PROG_TYPE_KPROBE, probe_fd));
 
-  const int kAttempts = 3;
-  int res_fd = -1;
-  for (int i=0; i < kAttempts; ++i) {
-    res_fd = bpf_attach_uprobe(probe_fd, attach_type, probe_event.c_str(),
-                               binary_path.c_str(), offset, pid);
-
-    if (res_fd == -1 && errno == EBUSY) {
-      // Back-off with some jitter.
-      usleep(10000 + (rand() % 10000));
-    } else {
-      break;
-    }
-  }
+  int res_fd = bpf_attach_uprobe(probe_fd, attach_type, probe_event.c_str(),
+                                 binary_path.c_str(), offset, pid);
 
   if (res_fd < 0) {
+    StatusTuple s(
+            -1,
+            "Unable to attach %suprobe for binary %s symbol %s addr %lx "
+            "offset %lx using %s\n",
+            attach_type_debug(attach_type).c_str(), binary_path.c_str(),
+            symbol.c_str(), symbol_addr, symbol_offset, probe_func.c_str());
+    s.set_errno(errno);
     TRY2(unload_func(probe_func));
-    return StatusTuple(
-        -1,
-        "Unable to attach %suprobe for binary %s symbol %s addr %lx "
-        "offset %lx using %s\n",
-        attach_type_debug(attach_type).c_str(), binary_path.c_str(),
-        symbol.c_str(), symbol_addr, symbol_offset, probe_func.c_str());
+    return s;
   }
 
   open_probe_t p = {};
@@ -898,22 +880,11 @@ StatusTuple BPF::detach_kprobe_event(const std::string& event,
                                      open_probe_t& attr) {
   bpf_close_perf_event_fd(attr.perf_event_fd);
   TRY2(unload_func(attr.func));
-
-  const int kAttempts = 3;
-  int res = -1;
-  for (int i=0; i < kAttempts; ++i) {
-    res = bpf_detach_kprobe(event.c_str());
-
-    if (res < 0 && errno == EBUSY) {
-      // Back-off with some jitter.
-      usleep(10000 + (rand() % 10000));
-    } else {
-      break;
-    }
+  if (bpf_detach_kprobe(event.c_str()) < 0) {
+    StatusTuple s(-1, "Unable to detach kprobe %s", event.c_str());
+    s.set_errno(errno);
+    return s;
   }
-
-  if (res < 0)
-    return StatusTuple(-1, "Unable to detach kprobe %s", event.c_str());
   return StatusTuple::OK();
 }
 
@@ -921,22 +892,11 @@ StatusTuple BPF::detach_uprobe_event(const std::string& event,
                                      open_probe_t& attr) {
   bpf_close_perf_event_fd(attr.perf_event_fd);
   TRY2(unload_func(attr.func));
-
-  const int kAttempts = 3;
-  int res = -1;
-  for (int i=0; i < kAttempts; ++i) {
-    res = bpf_detach_uprobe(event.c_str());
-
-    if (res < 0 && errno == EBUSY) {
-      // Back-off with some jitter.
-      usleep(10000 + (rand() % 10000));
-    } else {
-      break;
-    }
+  if (bpf_detach_uprobe(event.c_str()) < 0) {
+    StatusTuple s(-1, "Unable to detach uprobe %s", event.c_str());
+      s.set_errno(errno);
+    return s;
   }
-
-  if (res < 0)
-    return StatusTuple(-1, "Unable to detach uprobe %s", event.c_str());
   return StatusTuple::OK();
 }
 
