@@ -274,6 +274,14 @@ BPFStackTable::~BPFStackTable() {
     bcc_free_symcache(it.second, it.first);
 }
 
+void BPFStackTable::free_symcache(int pid) {
+  auto iter = pid_sym_.find(pid);
+  if (iter != pid_sym_.end()) {
+    bcc_free_symcache(iter->second, iter->first);
+    pid_sym_.erase(iter);
+  }
+}
+
 void BPFStackTable::clear_stack_id(int stack_id) {
   if(stack_id >= 0) {
     remove(&stack_id);

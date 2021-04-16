@@ -387,6 +387,7 @@ class BPFStackTable : public BPFTableBase<int, stacktrace_t> {
   BPFStackTable(BPFStackTable&& that);
   ~BPFStackTable();
 
+  void free_symcache(int pid);
   void clear_table_non_atomic();
   void clear_stack_id(int stack_id);
   std::vector<uintptr_t> get_stack_addr(int stack_id, const bool clear=false);
