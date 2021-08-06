@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 // Copyright (c) 2020 Wenbo Zhang
-#include "vmlinux.h"
+#include <vmlinux.h>
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_core_read.h>
 #include <bpf/bpf_tracing.h>
@@ -47,19 +47,19 @@ static __always_inline int trace_connect(struct sock *sk)
 }
 
 SEC("fentry/tcp_v4_connect")
-int BPF_PROG(fentry__tcp_v4_connect, struct sock *sk)
+int BPF_PROG(tcp_v4_connect, struct sock *sk)
 {
 	return trace_connect(sk);
 }
 
 SEC("kprobe/tcp_v6_connect")
-int BPF_KPROBE(kprobe__tcp_v6_connect, struct sock *sk)
+int BPF_KPROBE(tcp_v6_connect, struct sock *sk)
 {
 	return trace_connect(sk);
 }
 
 SEC("fentry/tcp_rcv_state_process")
-int BPF_PROG(fentry__tcp_rcv_state_process, struct sock *sk)
+int BPF_PROG(tcp_rcv_state_process, struct sock *sk)
 {
 	struct piddata *piddatap;
 	struct event event = {};
@@ -78,7 +78,7 @@ int BPF_PROG(fentry__tcp_rcv_state_process, struct sock *sk)
 	if (delta < 0)
 		goto cleanup;
 
-	event.delta_us = delta / 1000;
+	event.delta_us = delta / 1000U;
 	if (targ_min_us && event.delta_us < targ_min_us)
 		goto cleanup;
 	__builtin_memcpy(&event.comm, piddatap->comm,

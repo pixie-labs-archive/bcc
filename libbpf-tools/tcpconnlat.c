@@ -25,11 +25,12 @@ static struct env {
 } env;
 
 const char *argp_program_version = "tcpconnlat 0.1";
-const char *argp_program_bug_address = "<ethercflow@gmail.com>";
+const char *argp_program_bug_address =
+	"https://github.com/iovisor/bcc/tree/master/libbpf-tools";
 const char argp_program_doc[] =
 "\nTrace TCP connects and show connection latency.\n"
 "\n"
-"USAGE: tcpconnlat [-h] [-t] [-p PID]\n"
+"USAGE: tcpconnlat [--help] [-t] [-p PID]\n"
 "\n"
 "EXAMPLES:\n"
 "    tcpconnlat              # summarize on-CPU time as a histogram"
@@ -39,10 +40,10 @@ const char argp_program_doc[] =
 "    tcpconnlat -p 185       # trace PID 185 only";
 
 static const struct argp_option opts[] = {
-	{ NULL, 'h', NULL, OPTION_HIDDEN, "Show the full help" },
 	{ "timestamp", 't', NULL, 0, "Include timestamp on output" },
 	{ "pid", 'p', "PID", 0, "Trace this PID only" },
 	{ "verbose", 'v', NULL, 0, "Verbose debug output" },
+	{ NULL, 'h', NULL, OPTION_HIDDEN, "Show the full help" },
 	{},
 };
 
@@ -51,11 +52,11 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 	static int pos_args;
 
 	switch (key) {
+	case 'h':
+		argp_state_help(state, stderr, ARGP_HELP_STD_HELP);
+		break;
 	case 'v':
 		env.verbose = true;
-		break;
-	case 'h':
-		argp_usage(state);
 		break;
 	case 'p':
 		errno = 0;
@@ -159,7 +160,7 @@ int main(int argc, char **argv)
 
 	obj = tcpconnlat_bpf__open();
 	if (!obj) {
-		fprintf(stderr, "failed to open and/or load BPF ojbect\n");
+		fprintf(stderr, "failed to open BPF object\n");
 		return 1;
 	}
 

@@ -18,7 +18,8 @@
 #define warn(...) fprintf(stderr, __VA_ARGS__)
 
 const char *argp_program_version = "tcpconnect 0.1";
-const char *argp_program_bug_address = "<bpf@vger.kernel.org>";
+const char *argp_program_bug_address =
+	"https://github.com/iovisor/bcc/tree/master/libbpf-tools";
 static const char argp_program_doc[] =
 	"\ntcpconnect: Count/Trace active tcp connections\n"
 	"\n"
@@ -110,6 +111,7 @@ static const struct argp_option opts[] = {
 	  "Comma-separated list of destination ports to trace" },
 	{ "cgroupmap", 'C', "PATH", 0, "trace cgroups in this map" },
 	{ "mntnsmap", 'M', "PATH", 0, "trace mount namespaces in this map" },
+	{ NULL, 'h', NULL, OPTION_HIDDEN, "Show the full help" },
 	{},
 };
 
@@ -132,6 +134,9 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 	int nports;
 
 	switch (key) {
+	case 'h':
+		argp_state_help(state, stderr, ARGP_HELP_STD_HELP);
+		break;
 	case 'v':
 		env.verbose = true;
 		break;
@@ -203,7 +208,7 @@ static void print_count_ipv4(int map_fd)
 	static __u64 counts[MAX_ENTRIES];
 	char s[INET_ADDRSTRLEN];
 	char d[INET_ADDRSTRLEN];
-	__u32 n = MAX_ENTRIES;
+	__u32 i, n = MAX_ENTRIES;
 	struct in_addr src;
 	struct in_addr dst;
 
@@ -212,7 +217,7 @@ static void print_count_ipv4(int map_fd)
 		return;
 	}
 
-	for (__u32 i = 0; i < n; i++) {
+	for (i = 0; i < n; i++) {
 		src.s_addr = keys[i].saddr;
 		dst.s_addr = keys[i].daddr;
 
@@ -232,7 +237,7 @@ static void print_count_ipv6(int map_fd)
 	static __u64 counts[MAX_ENTRIES];
 	char s[INET6_ADDRSTRLEN];
 	char d[INET6_ADDRSTRLEN];
-	__u32 n = MAX_ENTRIES;
+	__u32 i, n = MAX_ENTRIES;
 	struct in6_addr src;
 	struct in6_addr dst;
 
@@ -241,7 +246,7 @@ static void print_count_ipv6(int map_fd)
 		return;
 	}
 
-	for (__u32 i = 0; i < n; i++) {
+	for (i = 0; i < n; i++) {
 		memcpy(src.s6_addr, keys[i].saddr, sizeof(src.s6_addr));
 		memcpy(dst.s6_addr, keys[i].daddr, sizeof(src.s6_addr));
 
@@ -357,7 +362,7 @@ int main(int argc, char **argv)
 		.args_doc = NULL,
 	};
 	struct tcpconnect_bpf *obj;
-	int err;
+	int i, err;
 
 	err = argp_parse(&argp, argc, argv, 0, NULL, NULL);
 	if (err)
@@ -385,7 +390,7 @@ int main(int argc, char **argv)
 		obj->rodata->filter_uid = env.uid;
 	if (env.nports > 0) {
 		obj->rodata->filter_ports_len = env.nports;
-		for (int i = 0; i < env.nports; i++) {
+		for (i = 0; i < env.nports; i++) {
 			obj->rodata->filter_ports[i] = htons(env.ports[i]);
 		}
 	}

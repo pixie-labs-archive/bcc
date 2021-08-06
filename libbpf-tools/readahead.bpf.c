@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: GPL-2.0
 // Copyright (c) 2020 Wenbo Zhang
-#include "vmlinux.h"
+#include <vmlinux.h>
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
 #include "readahead.h"
 #include "bits.bpf.h"
 
-#define MAX_ENTRIES 10240
+#define MAX_ENTRIES	10240
 
 struct {
 	__uint(type, BPF_MAP_TYPE_HASH);
@@ -26,8 +26,8 @@ struct {
 
 static struct hist hist;
 
-SEC("fentry/__do_page_cache_readahead")
-int BPF_PROG(fentry__do_page_cache_readahead)
+SEC("fentry/do_page_cache_ra")
+int BPF_PROG(do_page_cache_ra)
 {
 	u32 pid = bpf_get_current_pid_tgid();
 	u64 one = 1;
@@ -37,7 +37,7 @@ int BPF_PROG(fentry__do_page_cache_readahead)
 }
 
 SEC("fexit/__page_cache_alloc")
-int BPF_PROG(fexit__page_cache_alloc, gfp_t gfp, struct page *ret)
+int BPF_PROG(page_cache_alloc_ret, gfp_t gfp, struct page *ret)
 {
 	u32 pid = bpf_get_current_pid_tgid();
 	u64 ts;
@@ -53,8 +53,8 @@ int BPF_PROG(fexit__page_cache_alloc, gfp_t gfp, struct page *ret)
 	return 0;
 }
 
-SEC("fexit/__do_page_cache_readahead")
-int BPF_PROG(fexit__do_page_cache_readahead)
+SEC("fexit/do_page_cache_ra")
+int BPF_PROG(do_page_cache_ra_ret)
 {
 	u32 pid = bpf_get_current_pid_tgid();
 
@@ -63,7 +63,7 @@ int BPF_PROG(fexit__do_page_cache_readahead)
 }
 
 SEC("fentry/mark_page_accessed")
-int BPF_PROG(fentry__mark_page_accessed, struct page *page)
+int BPF_PROG(mark_page_accessed, struct page *page)
 {
 	u64 *tsp, slot, ts = bpf_ktime_get_ns();
 	s64 delta;
@@ -74,7 +74,7 @@ int BPF_PROG(fentry__mark_page_accessed, struct page *page)
 	delta = (s64)(ts - *tsp);
 	if (delta < 0)
 		goto update_and_cleanup;
-	slot = log2l(delta / 1000000);
+	slot = log2l(delta / 1000000U);
 	if (slot >= MAX_SLOTS)
 		slot = MAX_SLOTS - 1;
 	__sync_fetch_and_add(&hist.slots[slot], 1);

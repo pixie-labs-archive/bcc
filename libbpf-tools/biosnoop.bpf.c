@@ -1,15 +1,17 @@
 // SPDX-License-Identifier: GPL-2.0
 // Copyright (c) 2020 Wenbo Zhang
-#include "vmlinux.h"
+#include <vmlinux.h>
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_core_read.h>
 #include <bpf/bpf_tracing.h>
 #include "biosnoop.h"
 
-#define MAX_ENTRIES 10240
+#define MAX_ENTRIES	10240
 
-const volatile char targ_disk[DISK_NAME_LEN] = {};
 const volatile bool targ_queued = false;
+const volatile dev_t targ_dev = -1;
+
+extern __u32 LINUX_KERNEL_VERSION __kconfig;
 
 struct piddata {
 	char comm[TASK_COMM_LEN];
@@ -27,6 +29,7 @@ struct {
 struct stage {
 	u64 insert;
 	u64 issue;
+	dev_t dev;
 };
 
 struct {
@@ -48,33 +51,22 @@ int trace_pid(struct request *rq)
 	u64 id = bpf_get_current_pid_tgid();
 	struct piddata piddata = {};
 
-	piddata.pid = id;
+	piddata.pid = id >> 32;
 	bpf_get_current_comm(&piddata.comm, sizeof(&piddata.comm));
 	bpf_map_update_elem(&infobyreq, &rq, &piddata, 0);
 	return 0;
 }
 
 SEC("fentry/blk_account_io_start")
-int BPF_PROG(fentry__blk_account_io_start, struct request *rq)
+int BPF_PROG(blk_account_io_start, struct request *rq)
 {
 	return trace_pid(rq);
 }
 
 SEC("kprobe/blk_account_io_merge_bio")
-int BPF_KPROBE(kprobe__blk_account_io_merge_bio, struct request *rq)
+int BPF_KPROBE(blk_account_io_merge_bio, struct request *rq)
 {
 	return trace_pid(rq);
-}
-
-static __always_inline bool disk_filtered(const char *disk)
-{
-	int i;
-
-	for (i = 0; targ_disk[i] != '\0' && i < DISK_NAME_LEN; i++) {
-		if (disk[i] != targ_disk[i])
-			return false;
-	}
-	return true;
 }
 
 static __always_inline
@@ -82,16 +74,15 @@ int trace_rq_start(struct request *rq, bool insert)
 {
 	struct stage *stagep, stage = {};
 	u64 ts = bpf_ktime_get_ns();
-	char disk[DISK_NAME_LEN];
 
 	stagep = bpf_map_lookup_elem(&start, &rq);
 	if (!stagep) {
-		bpf_probe_read_kernel_str(&disk, sizeof(disk),
-					rq->rq_disk->disk_name);
-		if (!disk_filtered(disk)) {
-			bpf_map_delete_elem(&infobyreq, &rq);
+		struct gendisk *disk = BPF_CORE_READ(rq, rq_disk);
+
+		stage.dev = disk ? MKDEV(BPF_CORE_READ(disk, major),
+				BPF_CORE_READ(disk, first_minor)) : 0;
+		if (targ_dev != -1 && targ_dev != stage.dev)
 			return 0;
-		}
 		stagep = &stage;
 	}
 	if (insert)
@@ -104,21 +95,35 @@ int trace_rq_start(struct request *rq, bool insert)
 }
 
 SEC("tp_btf/block_rq_insert")
-int BPF_PROG(tp_btf__block_rq_insert, struct request_queue *q,
-	     struct request *rq)
+int BPF_PROG(block_rq_insert)
 {
-	return trace_rq_start(rq, true);
+	/**
+	 * commit a54895fa (v5.11-rc1) changed tracepoint argument list
+	 * from TP_PROTO(struct request_queue *q, struct request *rq)
+	 * to TP_PROTO(struct request *rq)
+	 */
+	if (LINUX_KERNEL_VERSION > KERNEL_VERSION(5, 10, 0))
+		return trace_rq_start((void *)ctx[0], true);
+	else
+		return trace_rq_start((void *)ctx[1], true);
 }
 
 SEC("tp_btf/block_rq_issue")
-int BPF_PROG(tp_btf__block_rq_issue, struct request_queue *q,
-	     struct request *rq)
+int BPF_PROG(block_rq_issue)
 {
-	return trace_rq_start(rq, false);
+	/**
+	 * commit a54895fa (v5.11-rc1) changed tracepoint argument list
+	 * from TP_PROTO(struct request_queue *q, struct request *rq)
+	 * to TP_PROTO(struct request *rq)
+	 */
+	if (LINUX_KERNEL_VERSION > KERNEL_VERSION(5, 10, 0))
+		return trace_rq_start((void *)ctx[0], false);
+	else
+		return trace_rq_start((void *)ctx[1], false);
 }
 
 SEC("tp_btf/block_rq_complete")
-int BPF_PROG(tp_btf__block_rq_complete, struct request *rq, int error,
+int BPF_PROG(block_rq_complete, struct request *rq, int error,
 	     unsigned int nr_bytes)
 {
 	u64 slot, ts = bpf_ktime_get_ns();
@@ -152,8 +157,7 @@ int BPF_PROG(tp_btf__block_rq_complete, struct request *rq, int error,
 	event.sector = rq->__sector;
 	event.len = rq->__data_len;
 	event.cmd_flags = rq->cmd_flags;
-	bpf_probe_read_kernel_str(&event.disk, sizeof(event.disk),
-				rq->rq_disk->disk_name);
+	event.dev = stagep->dev;
 	bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, &event,
 			sizeof(event));
 
